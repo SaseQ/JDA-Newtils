@@ -15,6 +15,7 @@ import net.dv8tion.jda.internal.interactions.CommandDataImpl;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class CommandManager extends ListenerAdapter {
@@ -45,10 +46,10 @@ public class CommandManager extends ListenerAdapter {
                 return;
             }
 
-            List<CommandDataImpl> commandDataList = commands.stream().map(this::createCommandData).toList();
+            List<CommandDataImpl> commandDataList = commands.stream().map(this::createCommandData).collect(Collectors.toList());
             devGuild.updateCommands().addCommands(commandDataList).queue();
         } else if (environment.equals(Environment.PROD)) {
-            List<CommandDataImpl> commandDataList = commands.stream().map(this::createCommandData).toList();
+            List<CommandDataImpl> commandDataList = commands.stream().map(this::createCommandData).collect(Collectors.toList());
             event.getJDA().updateCommands().addCommands(commandDataList).queue();
         } else {
             log.error("Unknown environment: {}", environment.name());
