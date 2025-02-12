@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
 import net.dv8tion.jda.api.Permission;
+import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandGroupData;
@@ -26,4 +27,6 @@ public abstract class SlashCommand {
     protected boolean nsfwOnly = false;
 
     public abstract void execute(@NonNull SlashCommandInteractionEvent event);
+
+    public void onAutoComplete(@NonNull CommandAutoCompleteInteractionEvent event) {}
 }

@@ -7,6 +7,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.GenericCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.MessageContextInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
@@ -164,6 +165,15 @@ public class CommandManager extends ListenerAdapter {
             if (contextMenu.getName().equals(event.getName())) {
                 if (checkIsOwner(contextMenu.isOwnerCommand(), event.getUser(), event)) return;
                 contextMenu.execute(event);
+            }
+        }
+    }
+
+    @Override
+    public void onCommandAutoCompleteInteraction(@NotNull CommandAutoCompleteInteractionEvent event) {
+        for (SlashCommand command : commands) {
+            if (command.getName().equals(event.getName())) {
+                command.onAutoComplete(event);
             }
         }
     }
