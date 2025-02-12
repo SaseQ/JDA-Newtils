@@ -1,17 +1,20 @@
 package dev.saseq.command.managers;
 
+import dev.saseq.command.impl.ContextMenu;
 import dev.saseq.command.impl.SlashCommand;
 import dev.saseq.command.parts.Environment;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.events.interaction.command.GenericCommandInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.command.MessageContextInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.interactions.InteractionContextType;
 import net.dv8tion.jda.api.interactions.commands.DefaultMemberPermissions;
-import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
-import net.dv8tion.jda.api.interactions.commands.build.SubcommandGroupData;
-import net.dv8tion.jda.internal.interactions.CommandDataImpl;
+import net.dv8tion.jda.api.interactions.commands.build.*;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -21,6 +24,7 @@ import java.util.stream.Collectors;
 public class CommandManager extends ListenerAdapter {
 
     private final List<SlashCommand> commands = new ArrayList<>();
+    private final List<ContextMenu> contextMenus = new ArrayList<>();
     @Setter
     private String ownerId;
     @Setter
@@ -31,14 +35,12 @@ public class CommandManager extends ListenerAdapter {
     @Override
     public void onReady(@NotNull ReadyEvent event) {
         if (environment == null) {
-            log.error("The environment is not set!");
-            return;
+            throw new IllegalStateException("The environment is not set");
         }
 
         if (environment.equals(Environment.DEV)) {
             if (devServerID == null) {
-                log.error("The dev server id is not set!");
-                return;
+                throw new IllegalStateException("The dev server id is not set");
             }
             Guild devGuild = event.getJDA().getGuildById(devServerID);
             if (devGuild == null) {
@@ -46,22 +48,30 @@ public class CommandManager extends ListenerAdapter {
                 return;
             }
 
-            List<CommandDataImpl> commandDataList = commands.stream().map(this::createCommandData).collect(Collectors.toList());
+            List<CommandData> commandDataList = convertCommandsToCommandDataList();
             devGuild.updateCommands().addCommands(commandDataList).queue();
         } else if (environment.equals(Environment.PROD)) {
-            List<CommandDataImpl> commandDataList = commands.stream().map(this::createCommandData).collect(Collectors.toList());
+            List<CommandData> commandDataList = convertCommandsToCommandDataList();
             event.getJDA().updateCommands().addCommands(commandDataList).queue();
         } else {
             log.error("Unknown environment: {}", environment.name());
         }
     }
 
-    private CommandDataImpl createCommandData(SlashCommand command) {
-        CommandDataImpl commandData = new CommandDataImpl(command.getName(), command.getDescription());
+    private List<CommandData> convertCommandsToCommandDataList() {
+        List<CommandData> commandDataList = commands.stream().map(this::createCommandData).collect(Collectors.toList());
+        commandDataList.addAll(contextMenus.stream().map(this::createContextMenuData).collect(Collectors.toList()));
+        return commandDataList;
+    }
+
+    private CommandData createCommandData(SlashCommand command) {
+        SlashCommandData commandData = Commands.slash(command.getName(), command.getDescription());
         if (!command.getOptions().isEmpty()) {
             commandData.addOptions(command.getOptions());
         }
-        commandData.setGuildOnly(command.isGuildOnly());
+        if(command.isGuildOnly()) {
+            commandData.setContexts(InteractionContextType.GUILD);
+        }
         if (command.getPermissions().length != 0) {
             commandData.setDefaultPermissions(DefaultMemberPermissions.enabledFor(command.getPermissions()));
         }
@@ -91,24 +101,28 @@ public class CommandManager extends ListenerAdapter {
             }
         }
 
+        return commandData;
+    }
+
+    private CommandData createContextMenuData(ContextMenu contextMenu) {
+        CommandData commandData = Commands.context(contextMenu.getType(), contextMenu.getName());
+        if (contextMenu.getPermissions().length != 0) {
+            commandData.setDefaultPermissions(DefaultMemberPermissions.enabledFor(contextMenu.getPermissions()));
+        }
+        commandData.setNSFW(contextMenu.isNsfwOnly());
 
         return commandData;
+    }
+
+    public void addCommand(SlashCommand command) {
+        commands.add(command);
     }
 
     @Override
     public void onSlashCommandInteraction(@NotNull SlashCommandInteractionEvent event) {
         for (SlashCommand command : commands) {
             if (command.getName().equals(event.getName())) {
-                if (command.isOwnerCommand()) {
-                    if (ownerId == null) {
-                        log.error("The owner id is not set!");
-                        return;
-                    }
-                    if (!event.getUser().getId().equals(ownerId)) {
-                        event.reply("⛔ You are not authorized to use this command!").setEphemeral(true).queue();
-                        return;
-                    }
-                }
+                if (checkIsOwner(command.isOwnerCommand(), event.getUser(), event)) return;
 
                 String subcommandGroup = event.getSubcommandGroup();
                 String subcommand = event.getSubcommandName();
@@ -140,7 +154,30 @@ public class CommandManager extends ListenerAdapter {
         }
     }
 
-    public void addCommand(SlashCommand command) {
-        commands.add(command);
+    public void addContextMenu(ContextMenu contextMenu) {
+        contextMenus.add(contextMenu);
+    }
+
+    @Override
+    public void onMessageContextInteraction(@NotNull MessageContextInteractionEvent event) {
+        for (ContextMenu contextMenu : contextMenus) {
+            if (contextMenu.getName().equals(event.getName())) {
+                if (checkIsOwner(contextMenu.isOwnerCommand(), event.getUser(), event)) return;
+                contextMenu.execute(event);
+            }
+        }
+    }
+
+    private boolean checkIsOwner(boolean ownerCommand, User user, @NotNull GenericCommandInteractionEvent event) {
+        if (ownerCommand) {
+            if (ownerId == null) {
+                throw new IllegalStateException("The owner id is not set");
+            }
+            if (!user.getId().equals(ownerId)) {
+                event.reply("⛔ You are not authorized to use this command!").setEphemeral(true).queue();
+                return true;
+            }
+        }
+        return false;
     }
 }
