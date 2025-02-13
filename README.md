@@ -80,7 +80,7 @@ public static void main(String[] args) {
     manager.setOwnerId("$owner_id"); // replace $owner_id with your user discord id
     manager.setDevGuildId("$dev_guild_id"); // replace $dev_guild_id with your discord server id
 
-    manager.addCommand(new PingCommand());
+    manager.addCommand(new Ping());
 
     jda.addEventListener(manager);
 }
