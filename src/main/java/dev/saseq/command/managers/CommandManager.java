@@ -2,7 +2,6 @@ package dev.saseq.command.managers;
 
 import dev.saseq.command.impl.ContextMenu;
 import dev.saseq.command.impl.SlashCommand;
-import dev.saseq.command.parts.Environment;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.entities.Guild;
@@ -29,33 +28,22 @@ public class CommandManager extends ListenerAdapter {
     @Setter
     private String ownerId;
     @Setter
-    private String devServerID;
-    @Setter
-    private Environment environment;
+    private String devGuildId;
 
     @Override
     public void onReady(@NotNull ReadyEvent event) {
-        if (environment == null) {
-            throw new IllegalStateException("The environment is not set");
-        }
-
-        if (environment.equals(Environment.DEV)) {
-            if (devServerID == null) {
-                throw new IllegalStateException("The dev server id is not set");
-            }
-            Guild devGuild = event.getJDA().getGuildById(devServerID);
+        if (devGuildId != null) {
+            Guild devGuild = event.getJDA().getGuildById(devGuildId);
             if (devGuild == null) {
-                log.error("Could not find guild with ID: {}", devServerID);
+                log.error("Could not find guild with ID: {}", devGuildId);
                 return;
             }
 
             List<CommandData> commandDataList = convertCommandsToCommandDataList();
             devGuild.updateCommands().addCommands(commandDataList).queue();
-        } else if (environment.equals(Environment.PROD)) {
+        } else {
             List<CommandData> commandDataList = convertCommandsToCommandDataList();
             event.getJDA().updateCommands().addCommands(commandDataList).queue();
-        } else {
-            log.error("Unknown environment: {}", environment.name());
         }
     }
 
